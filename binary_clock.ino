@@ -2,16 +2,31 @@
 #include <Wire.h>
 #include "RTClib.h"
 
-RTC_DS1307 RTC; // RTC connected via I2C
+#include <Adafruit_NeoPixel.h>
 
-// Pin connected to ST_CP of 74HC595
-int latch = 12;
-// Pin connected to SH_CP of minutes
-int clockMin = 8;
-// Pin connected to SH_CP of hours
-int clockHrs = 9;
-// Pin connected to DS of 74HC595
-int data = 11;
+#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
+
+RTC_DS1307 RTC; // RTC connected via I2C (on atmega328 SDA: A4, SCL: A5)
+
+// pins for WS2812 digital LEDs
+int hours_pin = 9;
+int minutes_pin = 8;
+#ifdef SECONDS
+  int seconds_pin = 7;
+#endif
+
+// WS2812 strips
+Adafruit_NeoPixel hours = Adafruit_NeoPixel(8, hours_pin, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel minutes = Adafruit_NeoPixel(8, minutes_pin, NEO_GRB + NEO_KHZ800);
+
+
+// pin for DST on / off switch
+int dst = 2;
+
+// color array for base and "on" color
+//                              base                      on
+uint32_t colors[] = {hours.Color(0,0,255), hours.Color(255, 0, 0)};
+
 
 void setup() {
   Serial.begin(57600);
@@ -19,56 +34,47 @@ void setup() {
   // set up connection to RTC
   Wire.begin();
   RTC.begin();
-  //set pins to output so you can control the shift register
-  pinMode(latch, OUTPUT);
-  pinMode(clockMin, OUTPUT);
-  pinMode(clockHrs, OUTPUT);
-  pinMode(data, OUTPUT);
-
-  Serial.println(clockMin);
-  Serial.println(clockHrs);
-
+  // set necessary pins modes
+  pinMode(hours_pin, OUTPUT);
+  pinMode(minutes_pin, OUTPUT);
+  #ifdef SECONDS
+    pinMode(seconds_pin, OUTPUT);
+  #endif
+  // the DST is input of course, but the PIN 3 (next to it) needs to be output
+  // & high in order to be able to reliably detect the switch setting
+  pinMode(dst, INPUT);
+  pinMode(3, OUTPUT);
+  digitalWrite(3, HIGH);
 }
 
 void loop() {
   DateTime t = RTC.now();
   Serial.println("got time");
 
-  // get hours and shift them out
-  uint8_t hrs = t.hour();
-  uint8_t hrs_10 = hrs / 10; // get the 10-digit
-  uint8_t hrs_1 = hrs % 10; // get the 1-digit
-  Serial.print(hrs_10);
-  Serial.print(" ");
-  Serial.print(hrs_1);
-  Serial.print(" : ");
-  // shift those out
+  // get hours and display them
+  show_number(hours, t.hour());
 
-  shiftOut(data, clockHrs, MSBFIRST, hrs_10);
-  shiftOut(data, clockHrs, MSBFIRST, hrs_1);
-
-  // get minutes and shift them out
-  uint8_t min = t.minute();
-  uint8_t min_10 = min / 10; // get the 10-digit
-  uint8_t min_1 = min % 10; // get the 1-digit
-  Serial.print(min_10);
-  Serial.print(" ");
-  Serial.println(min_1);
-  // shift those out
-  shiftOut(data, clockMin, MSBFIRST, min_10);
-  shiftOut(data, clockMin, MSBFIRST, min_1);
-
-  // display all of it
-  pulse(latch);
+  // get minutes and display them
+  show_number(minutes, t.minute());
 
   delay(1000);
 }
 
-/*
-* provides a pulse (HIGH-LOW) on one pin
-* frequently needed with shift registers
-*/
-void pulse(int pin) {
-  digitalWrite(pin, HIGH);
-  digitalWrite(pin, LOW);
+void show_number(Adafruit_NeoPixel strip, int number) {
+  // separate 10 and 1 digits
+  uint8_t tens = number / 10; // get the 10-digit
+  uint8_t ones = number % 10; // get the 1-digit
+  Serial.println();
+  // show the ones
+  for(int i = 0; i < 4; i++) {
+    uint8_t bit = (ones >> i) % 2;
+    strip.setPixelColor(i, colors[bit]);
+  }
+  // show the tens
+  for(int i = 0; i < 4; i++) {
+    uint8_t bit = (tens >> i) % 2;
+    strip.setPixelColor(i + 4, colors[bit]);
+  }
+  // apply
+  strip.show();
 }
