@@ -8,7 +8,8 @@
   #include <avr/power.h>
 #endif
 
-#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
+//#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
+//#define DST_SWTICH
 
 RTC_DS1307 RTC; // RTC connected via I2C (on atmega328 SDA: A4, SCL: A5)
 
@@ -28,11 +29,13 @@ Adafruit_NeoPixel minutes = Adafruit_NeoPixel(8, minutes_pin, NEO_GRB + NEO_KHZ8
 
 
 // pin for DST on / off switch
-int dst = 2;
+#ifdef DST_SWTICH
+  int dst = 2;
+#endif
 
 // color array for base and "on" color
 //                              base                      on
-uint32_t colors[] = {minutes.Color(0,0,255), minutes.Color(255, 0, 0)};
+uint32_t colors[] = {minutes.Color(0,0,5), minutes.Color(50, 10, 0)};
 
 
 void setup() {
@@ -41,12 +44,14 @@ void setup() {
   // set up connection to RTC
   Wire.begin();
   RTC.begin();
-  // set necessary pins modes
-  // the DST is input of course, but the PIN 3 (next to it) needs to be output
-  // & high in order to be able to reliably detect the switch setting
-  pinMode(dst, INPUT);
-  pinMode(3, OUTPUT);
-  digitalWrite(3, HIGH);
+  #ifdef DST_SWTICH
+    // set necessary pins modes
+    // the DST is input of course, but the PIN 3 (next to it) needs to be output
+    // & high in order to be able to reliably detect the switch setting
+    pinMode(dst, INPUT);
+    pinMode(3, OUTPUT);
+    digitalWrite(3, HIGH);
+  #endif
 
   // init NeoPixels
   hours.begin();
@@ -75,10 +80,12 @@ void loop() {
   }*/
 
   int dst_offset = 0;
-  if(digitalRead(dst) == 1) {
-    Serial.println("dst");
-    dst_offset = 1;
-  }
+  #ifdef DST_SWTICH
+    if(digitalRead(dst) == 1) {
+      Serial.println("dst");
+      dst_offset = 1;
+    }
+  #endif
 
   DateTime t = RTC.now();
   Serial.print("Seconds: ");
