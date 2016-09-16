@@ -8,8 +8,8 @@
   #include <avr/power.h>
 #endif
 
-//#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
-//#define DST_SWTICH
+#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
+#define DST_SWTICH
 
 RTC_DS1307 RTC; // RTC connected via I2C (on atmega328 SDA: A4, SCL: A5)
 
@@ -35,7 +35,15 @@ Adafruit_NeoPixel minutes = Adafruit_NeoPixel(8, minutes_pin, NEO_GRB + NEO_KHZ8
 
 // color array for base and "on" color
 //                              base                      on
-uint32_t colors[] = {minutes.Color(0,0,5), minutes.Color(50, 10, 0)};
+uint32_t colors_day[] = {minutes.Color(0,0,10), minutes.Color(100, 20, 0)};
+uint32_t colors_night[] = {minutes.Color(0,0,0), minutes.Color(2, 1, 0)};
+
+// array for the actual colors to be used (filled with either day or night by loop())
+uint32_t colors[2];
+
+// times (full hours) at which the day / night mode is activated
+int day_begin = 7;
+int night_begin = 22;
 
 
 void setup() {
@@ -87,6 +95,8 @@ void loop() {
     }
   #endif
 
+
+
   DateTime t = RTC.now();
   Serial.print("Seconds: ");
   Serial.println(t.second());
@@ -94,6 +104,18 @@ void loop() {
   Serial.println(t.minute());
   Serial.print("Hours: ");
   Serial.println((t.hour() + dst_offset) % 24);
+
+
+  // choose day / night mode
+  int hrs = t.hour() + dst_offset;
+  if(hrs >= night_begin || hrs < day_begin) {
+    Serial.println("night");
+    memcpy(colors, colors_night, sizeof(colors_night));
+  } else {
+    Serial.println("day");
+    memcpy(colors, colors_day, sizeof(colors_day));
+  }
+
   // get hours and display them
   show_number(&hours, (t.hour() + dst_offset) % 24);
 
@@ -111,17 +133,17 @@ void show_number(Adafruit_NeoPixel* strip, int number) {
   // separate 10 and 1 digits
   uint8_t tens = number / 10; // get the 10-digit
   uint8_t ones = number % 10; // get the 1-digit
-  Serial.println(tens);
-  Serial.println(ones);
-  Serial.println();
+  //Serial.println(tens);
+  //Serial.println(ones);
+  //Serial.println();
   // show the ones
   for(int i = 0; i < 4; i++) {
     uint8_t bit = ones % 2;
     ones = ones >> 1;
-    Serial.print(bit);
-    Serial.print(" - ");
+    //Serial.print(bit);
+    //Serial.print(" - ");
     strip->setPixelColor(i, colors[bit]);
-    Serial.println(colors[bit]);
+    //Serial.println(colors[bit]);
   }
   // show the tens
   for(int i = 0; i < 4; i++) {
