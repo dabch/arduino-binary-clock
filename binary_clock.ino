@@ -1,3 +1,7 @@
+//#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
+//#define DST_SWTICH
+#define DST_BUTTON
+
 //#include <Arduino.h>
 #include <Wire.h>
 #include "RTClib.h"
@@ -8,8 +12,11 @@
   #include <avr/power.h>
 #endif
 
-#define SECONDS // comment if not using seconds bar (6 LEDs below the other strips)
-#define DST_SWTICH
+#ifdef DST_BUTTON
+  #include <EEPROM.h>
+  const int DST_EEPROM_ADDR = 0;
+#endif
+
 
 RTC_DS1307 RTC; // RTC connected via I2C (on atmega328 SDA: A4, SCL: A5)
 
@@ -32,6 +39,11 @@ Adafruit_NeoPixel minutes = Adafruit_NeoPixel(8, minutes_pin, NEO_GRB + NEO_KHZ8
 #ifdef DST_SWTICH
   int dst = 2;
 #endif
+// pin for DST toggle button
+#ifdef DST_BUTTON
+  int dst = 4;
+  boolean dst_act = 0;
+#endif
 
 // color array for base and "on" color
 //                              base                      on
@@ -43,7 +55,7 @@ uint32_t colors[2];
 
 // times (full hours) at which the day / night mode is activated
 int day_begin = 7;
-int night_begin = 22;
+int night_begin = 23;
 
 
 void setup() {
@@ -59,6 +71,16 @@ void setup() {
     pinMode(dst, INPUT);
     pinMode(3, OUTPUT);
     digitalWrite(3, HIGH);
+  #endif
+
+  #ifdef DST_BUTTON
+    // the button connects the dst pin to gnd
+    // it is set to mode INPUT_PULLUP so that we can easily detect presses
+    pinMode(dst, INPUT_PULLUP);
+    // read last DST value from EEPROM
+    dst_act = EEPROM.read(DST_EEPROM_ADDR);
+    // check for invalid values, correct if neither 0 or 1
+    dst_act = dst_act <= 1 ? dst_act : 0;
   #endif
 
   // init NeoPixels
@@ -94,8 +116,15 @@ void loop() {
       dst_offset = 1;
     }
   #endif
-
-
+  #ifdef DST_BUTTON
+    if(digitalRead(dst) == 0) {
+      dst_act = !dst_act;
+      EEPROM.write(DST_EEPROM_ADDR, dst_act);
+      Serial.print("DST changed to ");
+      Serial.println(dst_act);
+    }
+    dst_offset = dst_act;
+  #endif
 
   DateTime t = RTC.now();
   Serial.print("Seconds: ");
